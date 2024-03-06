@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Button App</title>
+    <style>
+        .button {
+            width: 50px;
+            height: 30px;
+            margin: 5px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <button onclick="createButton('circle')">Create Circle</button>
+    <button onclick="createButton('rectangle')">Create Rectangle</button>
+
+    <div id="infoModal" class="modal">
+        <h2>Edit Button Information</h2>
+        <label for="updateInfo">Update Information:</label>
+        <input type="text" id="updateInfo" placeholder="Enter updated information">
+        <button onclick="saveUpdatedInfo()">Save</button>
+        <button onclick="closeModal()">Cancel</button>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+
+<script>
+  let buttonCount = 0;
+const xhr = new XMLHttpRequest();
+let currentButton;
+
+function createButton(shape) {
+    const newButton = document.createElement('button');
+    newButton.className = 'button';
+    newButton.innerHTML = `Button ${++buttonCount}`;
+
+    if (shape === 'circle') {
+        newButton.style.borderRadius = '50%';
+    }
+
+    document.body.appendChild(newButton);
+
+    // Save button data to the server using AJAX
+    saveButtonData(newButton, shape);
+
+    // Add event listener for button deletion
+    newButton.addEventListener('click', function () {
+        currentButton = this;
+        openModal();
+        displayButtonInfo();
+    });
+}
+
+function openModal() {
+    const modal = document.getElementById('infoModal');
+    modal.style.display = 'block';
+}
+
+function closeModal() {
+    const modal = document.getElementById('infoModal');
+    modal.style.display = 'none';
+}
+
+function displayButtonInfo() {
+    // Fetch button information from the server and display in the modal
+    const url = 'getButtonInfo.php';
+    const data = JSON.stringify({
+        buttonName: currentButton.innerHTML,
+    });
+
+    ajaxRequest('POST', url, data, function (response) {
+        if (response.success) {
+            // Display information in the modal
+            const updateInfoInput = document.getElementById('updateInfo');
+            updateInfoInput.value = response.buttonInfo;
+        } else {
+            console.error('Error fetching button information:', response.error);
+            closeModal();
+        }
+    });
+}
+
+function saveUpdatedInfo() {
+    const updateInfoInput = document.getElementById('updateInfo');
+    const updatedInfo = updateInfoInput.value;
+
+    // Update the displayed information on the button
+    currentButton.innerHTML = updatedInfo;
+
+    // Save updated information to the server
+    const url = 'updateButtonInfo.php';
+    const data = JSON.stringify({
+        buttonName: currentButton.innerHTML,
+        updatedInfo: updatedInfo,
+    });
+
+    ajaxRequest('POST', url, data, function (response) {
+        if (response.success) {
+            console.log('Information updated successfully');
+        } else {
+            console.error('Error updating button information:', response.error);
+        }
+
+        closeModal();
+    });
+}
+
+function deleteButton(button) {
+    const url = 'deleteButton.php';
+    const data = JSON.stringify({
+        buttonName: button.innerHTML,
+    });
+
+    ajaxRequest('POST', url, data, function (response) {
+        if (response.success) {
+            // Remove the button from the DOM
+            button.remove();
+
+            // Update buttonCount based on the existing buttons
+            buttonCount = document.querySelectorAll('.button').length;
+        } else {
+            console.error('Error deleting button:', response.error);
+        }
+    });
+}
+
+function ajaxRequest(method, url, data, callback) {
+    xhr.open(method, url, true);
+    xhr.setRequestHeader('Content-type', 'application/json');
+
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState == 4) {
+            if (xhr.status == 200) {
+                const response = JSON.parse(xhr.responseText);
+                callback(response);
+            } else {
+                console.error('Error in AJAX request:', xhr.statusText);
+            }
+        }
+    };
+
+    xhr.send(data);
+}
+
+</script>
+</html>
+
+
+
+
+
+// getButtonInfo.php (PHP with PDO):
+
+<?php
+$data = json_decode(file_get_contents('php://input'), true);
+
+$servername = "your_server_name";
+$username = "your_username";
+$password = "your_password";
+$dbname = "your_database_name";
+
+try {
+    $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    $buttonName = $data['buttonName'];
+
+    $stmt = $conn->prepare("SELECT buttonInfo FROM button_data WHERE buttonName = :buttonName");
+    $stmt->bindParam(':buttonName', $buttonName);
+    $stmt->execute();
+
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    echo json_encode(['success' => true, 'buttonInfo' => $result['buttonInfo']]);
+} catch (PDOException $e)
+
+
+
+
+//updateButtonInfo.php (PHP with PDO):
+<?php
+$data = json_decode(file_get_contents('php://input'), true);
+
+$servername = "your_server_name";
+$username = "your_username";
+$password = "your_password";
+$dbname = "your_database_name";
+
+try {
+    $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    $buttonName = $data['buttonName'];
+    $updatedInfo = $data['updatedInfo'];
+
+    $stmt = $conn->prepare("UPDATE button_data SET buttonInfo = :updatedInfo WHERE buttonName = :buttonName");
+    $stmt->bindParam(':buttonName', $buttonName);
+    $stmt->bindParam(':updatedInfo', $updatedInfo);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+}
+
+$conn = null;
+?>
+
+
+//deleteButton.php (PHP with PDO):
+<?php
+$data = json_decode(file_get_contents('php://input'), true);
+
+$servername = "your_server_name";
+$username = "your_username";
+$password = "your_password";
+$dbname = "your_database_name";
+
+try {
+    $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    $buttonName = $data['buttonName'];
+
+    $stmt = $conn->prepare("DELETE FROM button_data WHERE buttonName = :buttonName");
+    $stmt->bindParam(':buttonName', $buttonName);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+}
+
+$conn = null;
+?>
